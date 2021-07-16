@@ -142,6 +142,7 @@
   <ItemGroup>
     <ClCompile Include="inference.cpp" />
     <ClCompile Include="mobilenet.cpp" />
+    <ClCompile Include="opt.cpp" />
     <ClCompile Include="test.cpp" />
     <ClCompile Include="tools.cpp" />
   </ItemGroup>

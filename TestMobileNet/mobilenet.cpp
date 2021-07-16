@@ -14,7 +14,9 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include"opt.h"
 #include "mobilenet.h"
+#define im2col true;
 fstream time_record;
 int record = 0;
 void start_time_record(string fliename)
@@ -78,58 +80,69 @@ static void sigmoid_op_forward(nonlinear_op* op)
 //常规卷积操作函数
 static void conv_op_forward(conv_op* op)
 {
-    //op->batchsize = 1;
-    float* input_p;
-    int S = op->stride;//步长
-    int P = op->padding;//填充大小
-    int iw = op->in_w;
-    int ih = op->in_h;
-    int iwih = iw * ih;
-    int iw1 = op->in_w + 2 * P;
-    int ih1 = op->in_h + 2 * P;
-    int iwih1 = iw1 * ih1;
-    int owoh = op->out_w * op->out_h;
-    int k = op->kernel_size;
-    int kk = op->kernel_size * op->kernel_size;
-    int ikk = op->in_channels * kk;
-    int i_iwih = op->in_channels * iwih;
-    int i_iwih1 = op->in_channels * iwih1;
-    input_p = (float*)calloc(i_iwih1, sizeof(float));//分配填充后的权重空间，初始化为0
-    //将输入特征图进行填充操作
     clock_t start, end;
     start = clock();
-    for (int i = 0; i < op->batchsize; i++)
+    int Isim2col = im2col;
+    if (Isim2col)
     {
-        for (int j = 0; j < op->in_channels; j++)
+        test_im2col(op);
+    }
+    else
+    {
+        op->batchsize = 1;
+        float* input_p;
+        int s = op->stride;//步长
+        int p = op->padding;//填充大小
+        int iw = op->in_w;
+        int ih = op->in_h;
+        int iwih = iw * ih;
+        int iw1 = op->in_w + 2 * p;
+        int ih1 = op->in_h + 2 * p;
+        int iwih1 = iw1 * ih1;
+        int owoh = op->out_w * op->out_h;
+        int k = op->kernel_size;
+        int kk = op->kernel_size * op->kernel_size;
+        int ikk = op->in_channels * kk;
+        int i_iwih = op->in_channels * iwih;
+        int i_iwih1 = op->in_channels * iwih1;
+        input_p = (float*)calloc(i_iwih1, sizeof(float));//分配填充后的权重空间，初始化为0
+        //将输入特征图进行填充操作
+
+        for (int i = 0; i < op->batchsize; i++)
         {
-            for (int ii = 0; ii < op->in_w; ii++)
+            for (int j = 0; j < op->in_channels; j++)
             {
-                for (int jj = 0; jj < op->in_h; jj++)
+                for (int ii = 0; ii < op->in_h; ii++)
                 {
-                    //printf("%d\n", i * iwih + j * iwih + ii * ih + jj);
-                    input_p[i * i_iwih1 + j * iwih1 + (ii + P) * iw1 + jj + P] = op->input[i * iwih + j * iwih + ii * ih + jj];
+                    for (int jj = 0; jj < op->in_w; jj++)
+                    {
+                        //printf("%d\n", i * iwih + j * iwih + ii * ih + jj);
+                        input_p[i * i_iwih1 + j * iwih1 + (ii + p) * iw1 + jj + p] = op->input[i * iwih + j * iwih + ii * ih + jj];
+                    }
                 }
             }
         }
-    }
-    //卷积操作具体实现
-    for (int o_w = 0; o_w < op->out_w; o_w++)
-    {
-        for (int o_h = 0; o_h < op->out_h; o_h++)
+        //卷积操作具体实现
+        for (int o_c = 0; o_c < op->out_channels; o_c++)
         {
-            for (int o_c = 0; o_c < op->out_channels; o_c++)
+            for (int o_h = 0; o_h < op->out_h; o_h++)
             {
-                for (int i_c = 0; i_c < op->in_channels; i_c++)
-                    for (int i = 0; i < op->kernel_size; i++)
-                    {
-                        for (int j = 0; j < op->kernel_size; j++)
+                for (int o_w = 0; o_w < op->out_w; o_w++)
+                {
+                    for (int i_c = 0; i_c < op->in_channels; i_c++)
+                        for (int i = 0; i < op->kernel_size; i++)
                         {
-                            op->output[o_c * owoh + o_w * op->out_h + o_h] += op->weights[o_c * ikk + i_c * kk + i * k + j] * input_p[i_c * iwih1 + (S * o_w + i) * iw1 + S * o_h + j];
+                            for (int j = 0; j < op->kernel_size; j++)
+                            {
+                                op->output[o_c * owoh + o_h * op->out_w + o_w] += op->weights[o_c * ikk + i_c * kk + i * k + j] * input_p[i_c * iwih1 + (s * o_h + i) * iw1 + s * o_w + j];
+                            }
                         }
-                    }
+                }
             }
         }
+        free(input_p);
     }
+
     end = clock();
     time_record << "conv," << end-start << endl;
     //加偏置操作
@@ -144,7 +157,7 @@ static void conv_op_forward(conv_op* op)
     //    }
     //}
 
-    free(input_p);
+
 }
 
 //mobilenet中的dw卷积
@@ -174,9 +187,9 @@ static void conv_dw_op_forward(conv_op* op)
     {
         for (int j = 0; j < op->in_channels; j++)
         {
-            for (int ii = 0; ii < op->in_w; ii++)
+            for (int ii = 0; ii < op->in_h; ii++)
             {
-                for (int jj = 0; jj < op->in_h; jj++)
+                for (int jj = 0; jj < op->in_w; jj++)
                 {
                     //printf("%d\n", i * iwih + j * iwih + ii * ih + jj);
                     input_p[i * i_iwih1 + j * iwih1 + (ii + P) * iw1 + jj + P] = op->input[i * iwih + j * iwih + ii * ih + jj];
@@ -185,17 +198,17 @@ static void conv_dw_op_forward(conv_op* op)
         }
     }
     //dw卷积操作具体实现
-    for (int o_w = 0; o_w < op->out_w; o_w++)
+    for (int c = 0; c < op->out_channels; c++)
     {
         for (int o_h = 0; o_h < op->out_h; o_h++)
         {
-            for (int c = 0; c < op->out_channels; c++)
+            for (int o_w = 0; o_w < op->out_w; o_w++)
             {
                     for (int i = 0; i < op->kernel_size; i++)
                     {
                         for (int j = 0; j < op->kernel_size; j++)
                         {
-                            op->output[c * owoh + o_w * op->out_h + o_h] += op->weights[c * kk + i * k + j] * input_p[c * iwih1 + (S * o_w + i)* iw1 + S * o_h + j];
+                            op->output[c * owoh + o_h * op->out_w + o_w] += op->weights[c * kk + i * k + j] * input_p[c * iwih1 + (S * o_h + i)* iw1 + S * o_w + j];
                             //output[通道数*map大小 + 当前宽度*每列大小 +当前高度]等价于ouput[c*owoh+o_h*op->out_h+o_w]
                             //weights[当前通道数*卷积核大小 + 当前卷积核座标1*卷积核宽度 + 座标2]
                             //input_p[当前通道数*padding后输入map大小+(步长*当前高度+i）*扩张后高度）+（步长*当前宽度）
@@ -311,9 +324,9 @@ static void max_pooling_op_forward(max_pooling_op* op)
     start = clock();
     for (int c = 0; c < channels; c++)
     {
-        for (int i = 0; i < op->out_w; i++)
+        for (int i = 0; i < op->out_h; i++)
         {
-            for (int j = 0; j < op->out_h; j++)
+            for (int j = 0; j < op->out_w; j++)
             {
                 input_offset = j * strides + i * strides * (op->in_w) + c * iwih;
                 float pixel = op->input[input_offset];
@@ -321,11 +334,11 @@ static void max_pooling_op_forward(max_pooling_op* op)
                 {
                     for (int l = 0; l < pool_size; l++)
                     {
-                        pixel = MAX(pixel, op->input[c * iwih + (i * strides + k) * op->in_h + j * strides + l]);
+                        pixel = MAX(pixel, op->input[c * iwih + (i * strides + k) * op->in_w + j * strides + l]);
 
                     }
                 }
-                output_offset = j + i * (op->out_h) + c * owoh;
+                output_offset = j + i * (op->out_w) + c * owoh;
                 op->output[output_offset] = pixel;
             }
         }
@@ -346,9 +359,9 @@ static void avg_pooling_op_forward(avg_pooling_op* op)
     start = clock();
     for (int c = 0; c < channels; c++)
     {
-        for (int i = 0; i < op->out_w; i++)
+        for (int i = 0; i < op->out_h; i++)
         {
-            for (int j = 0; j < op->out_h; j++)
+            for (int j = 0; j < op->out_w; j++)
             {
                 input_offset = j * strides + i * strides * (op->in_w) + c * iwih;
                 //float pixel = op->input[input_offset];
@@ -358,12 +371,12 @@ static void avg_pooling_op_forward(avg_pooling_op* op)
                     for (int l = 0; l < pool_size; l++)
                     {
                        // pixel = MAX(pixel, op->input[c * iwih + (i * strides + k) * op->in_h + j * strides + l]);
-                        sum += op->input[c * iwih + (i * strides + k) * op->in_h + j * strides + l];
+                        sum += op->input[c * iwih + (i * strides + k) * op->in_w + j * strides + l];
 
                     }
                 }
                 mean = sum / (1.0f * pool_size * pool_size);
-                output_offset = j + i * (op->out_h) + c * owoh;
+                output_offset = j + i * (op->out_w) + c * owoh;
                 op->output[output_offset] = mean;
             }
         }

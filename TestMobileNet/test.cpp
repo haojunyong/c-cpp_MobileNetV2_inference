@@ -1,6 +1,7 @@
 #include"mobilenet.h"
 #include"inference.h"
 #include"tools.h"
+#include"opt.h"
 #include<iostream>
 #include<fstream>
 #include <cassert>
@@ -29,13 +30,22 @@ int main()
 	//----多张图片推断----//
 	clock_t start, end;
 	start = clock();
-	start_time_record("test_1000_3.csv");
+	start_time_record("test_10.csv");
 	mobilenet_inference(&net, 10);//测试图片（小于等于2000张)
-	free_mobilenet(&net);
-	free_mobilenet_layer(&net);
+
 	end_time_record();
 	end = clock();
 	cout << "\ntime used: " << (double)(end - start) / CLOCKS_PER_SEC << "s" << endl;
-	return 0;
+
+	//----im2col测试----
+
+//	test_im2col(&(net.f0_conv));
+
+	free_mobilenet(&net);
+	free_mobilenet_layer(&net);
+	//return 0;
+
+
+	
 
 }
