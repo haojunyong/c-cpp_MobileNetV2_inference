@@ -1,5 +1,5 @@
-# MobileNetV2_inference_C++
-MobileNetV2 inference C++ basic implement
+# MobileNetV2_inference_C/C++
+MobileNetV2 inference C/C++ basic implement
 从零用C++实现MobileNetV2
 
 # How to start inference
