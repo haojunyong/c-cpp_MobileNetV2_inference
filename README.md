@@ -46,9 +46,7 @@ def img_to_224(before,after):
 
 # operator implement
 ## conv
-just 6 for loops which is simple but not good
-about to change it to im2col
+~~just 6 for loops~~
+update：im2col + gemm(for loops implement,about to use cblas or openblas)
 
-## batch inference
-plan to implements
 
